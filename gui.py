@@ -77,12 +77,11 @@ class MeshBedWorker(QThread):
     
     def AutoZ_Down(self,_x ,_y, _z):
         while True:
-            for i in range(10):
-                read_data = arduino.Read_Data()
-                if read_data == 0:
-                    return _z
-                elif read_data == 2:
-                    return "error"
+            read_data = arduino.Read_Data()
+            if read_data == 0:
+                return _z
+            elif read_data == 2:
+                return "error"
             mdx20.Move(_x,_y,_z)
             _z = _z - 0.0127
     
@@ -95,7 +94,7 @@ class MeshBedWorker(QThread):
             for j in (np.arange(mesh_bl_x, mesh_tr_x+0.01, x_step) if (i - mesh_bl_y)%(2*y_step) == 0 else np.arange(mesh_tr_x, mesh_bl_x-0.01, -x_step)):
                 mdx20.Move(j, i, save_z+2)
                 mdx20.Move(j, i, save_z)
-                time.sleep(1)
+                time.sleep(1.5)
                 _z = self.AutoZ_Down(j, i, save_z)
                 if _z == "error":
                     return
@@ -122,20 +121,20 @@ class MainWindow(QMainWindow):
             event (QtEvent): Event signal from Qt
         """
         if event.key() == QtCore.Qt.Key_Left:
-            self.Move_Xm()
+            self.Move(x-delta_xy, y, z)
         elif event.key() == QtCore.Qt.Key_Right:
-            self.Move_Xp()
+            self.Move(x+delta_xy, y, z)
             
         elif event.modifiers() == QtCore.Qt.ControlModifier:
             if event.key() == QtCore.Qt.Key_Up:
-                self.Move_Zp()
+                self.Move(x, y, z+delta_z)
             elif event.key() == QtCore.Qt.Key_Down:
-                self.Move_Zm()
+                self.Move(x, y, z-delta_z)
                 
         elif event.key() == QtCore.Qt.Key_Up:
-            self.Move_Yp()
+            self.Move(x, y+delta_xy, z)
         elif event.key() == QtCore.Qt.Key_Down:
-            self.Move_Ym()
+            self.Move(x, y-delta_xy, z)
             
     def __init__(self):
         """Initialization"""
@@ -584,12 +583,11 @@ class MainWindow(QMainWindow):
         global z
         mdx20.Send_Data("V15.0")
         while True:
-            for i in range(10):
-                read_data = arduino.Read_Data()
-                if read_data == 0:
-                    return
-                elif read_data == 2:
-                    return "error"
+            read_data = arduino.Read_Data()
+            if read_data == 0:
+                return
+            elif read_data == 2:
+                return "error"
             mdx20.Move(x,y,z)
             z = z - 0.0127
             
@@ -639,10 +637,14 @@ class MainWindow(QMainWindow):
         self.update_table_size()
         
     def Set_bl(self):
+        global mesh_bl_x, mesh_bl_y
+        mesh_bl_x = x; mesh_bl_y = y
         self.x_bl_spinbox.setValue(x)
         self.y_bl_spinbox.setValue(y)
         self.update_table_size()
     def Set_tr(self):
+        global mesh_tr_x, mesh_tr_y
+        mesh_tr_x = x; mesh_tr_y = y
         self.x_tr_spinbox.setValue(x)
         self.y_tr_spinbox.setValue(y)
         self.update_table_size()
@@ -679,18 +681,19 @@ class MainWindow(QMainWindow):
             return
         h_grid, v_grid = arr[0]
         mesh_bed = arr[1]
-        mesh_bl_x, mesh_bl_y = mesh_bed[0][0], mesh_bed[0][1]
-        mesh_tr_x = mesh_bed[h_grid + 1][0]
-        mesh_tr_y = mesh_bed[len(mesh_bed) - 1][1]
-        self.x_bl_spinbox.setValue(mesh_bl_x)
-        self.y_bl_spinbox.setValue(mesh_bl_y)
-        self.x_tr_spinbox.setValue(mesh_tr_x)
-        self.y_tr_spinbox.setValue(mesh_tr_y)
-        self.h_grid_spinbox.setValue(h_grid)
-        self.v_grid_spinbox.setValue(v_grid)
-        self.update_table_size()
-        self.update_table_value()
-        self.meshbedviewer.Plot_Mesh(mesh_bed)
+        if len(mesh_bed) > 0:
+            mesh_bl_x, mesh_bl_y = mesh_bed[0][0], mesh_bed[0][1]
+            mesh_tr_x = mesh_bed[h_grid + 1][0]
+            mesh_tr_y = mesh_bed[len(mesh_bed) - 1][1]
+            self.x_bl_spinbox.setValue(mesh_bl_x)
+            self.y_bl_spinbox.setValue(mesh_bl_y)
+            self.x_tr_spinbox.setValue(mesh_tr_x)
+            self.y_tr_spinbox.setValue(mesh_tr_y)
+            self.h_grid_spinbox.setValue(h_grid)
+            self.v_grid_spinbox.setValue(v_grid)
+            self.update_table_size()
+            self.update_table_value()
+            self.meshbedviewer.Plot_Mesh(mesh_bed)
         
     def Clear_Mesh(self):
         global use_mesh

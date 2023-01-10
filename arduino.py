@@ -1,7 +1,7 @@
 import serial
 import serial.tools.list_ports
 
-BAUDRATE = 4000000
+BAUDRATE = 1152000
 
 ser = None
 

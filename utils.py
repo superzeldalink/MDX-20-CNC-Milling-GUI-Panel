@@ -8,7 +8,7 @@ def clip(value, lower, upper):
     return lower if value < lower else upper if value > upper else value
 
 def mm2inch(mm):
-    return mm/0.0254
+    return mm/0.025
 
 def inch2mm(inch):
-    return inch*0.0254
+    return inch*0.025

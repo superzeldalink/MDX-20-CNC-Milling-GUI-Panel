@@ -14,7 +14,7 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>MainWindow</string>
+   <string>MDX-20 Control Panel</string>
   </property>
   <widget class="QWidget" name="Main_Control">
    <layout class="QVBoxLayout" name="verticalLayout">

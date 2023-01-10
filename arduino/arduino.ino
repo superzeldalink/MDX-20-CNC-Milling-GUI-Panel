@@ -1,7 +1,7 @@
 #define contact_pin 2
 void setup() {
   // put your setup code here, to run once:
-  Serial.begin(4000000);
+  Serial.begin(1152000);
   pinMode(contact_pin, INPUT_PULLUP);
 }
 
