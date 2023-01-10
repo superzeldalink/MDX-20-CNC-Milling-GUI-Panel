@@ -1,5 +1,6 @@
-import sys, mdx20, nc2rol, pathlib, time, arduino, PointsOnMesh
+import sys, mdx20, nc2rol, pathlib, time, arduino, PointsOnMesh, configparser
 from utils import *
+from SelectSerialDialog import SelectSerialDialog
 import numpy as np
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
@@ -8,6 +9,8 @@ from PyQt5 import uic
 from PyQt5.QtCore import QThread, pyqtSignal, QLineF
 from PyQt5.QtCore import QFile, QTextStream
 import breeze_resources
+
+path = str(pathlib.Path(__file__).parent.resolve())
 
 # Initial variales
 x, y, z = 0, 0, 0
@@ -31,6 +34,15 @@ mesh_bed = []
 mesh_bl_x, mesh_bl_y, mesh_tr_x ,mesh_tr_y = 0, 0, MAX_X, MAX_Y
 h_grid, v_grid = 3, 3
 use_mesh = False
+
+mdx_port, arduino_port = None, None
+
+config = configparser.ConfigParser()
+config.read(path + "/config/config.ini")
+
+x0 = float(config['Origin']['x'])
+y0 = float(config['Origin']['y'])
+z0 = float(config['Origin']['z'])
 
 class WorkerThread(QThread):
     """Job milling worker"""
@@ -128,7 +140,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         """Initialization"""
         super().__init__()
-        uic.loadUi(f"{pathlib.Path(__file__).parent.resolve()}/gui.ui", self)
+        uic.loadUi(path + "/gui.ui", self)
         self.xm_btn.clicked.connect(lambda: self.Move(x-delta_xy, y, z))
         self.xp_btn.clicked.connect(lambda: self.Move(x+delta_xy, y, z))
         self.ym_btn.clicked.connect(lambda: self.Move(x, y-delta_xy, z))
@@ -220,6 +232,11 @@ class MainWindow(QMainWindow):
         self.graphicsView.viewport().installEventFilter(self)
         
         self.Main_Control.setEnabled(False)
+        
+        """Set spinboxes values from config file"""
+        self.x0_spinbox.setValue(x0)
+        self.y0_spinbox.setValue(y0)
+        self.z0_spinbox.setValue(z0)
 
     """2D viewport related functions"""
     def eventFilter(self, source, event):
@@ -338,13 +355,32 @@ class MainWindow(QMainWindow):
     
     def Start_serial(self):
         """Start MDX-20 and Arduino Serial"""
-        serial_started = mdx20.OpenSerial()
-        arduino.OpenSerial()
-        if serial_started == False:
-            QMessageBox.critical(self, "Error", "Error! Can not start serial!")
-            self.Main_Control.setEnabled(False)
-        else:
-            self.init_machine()
+        global mdx_port, arduino_port
+        mdx_port = config['Serial']['mdx_port']
+        arduino_port = config['Serial']['arduino_port']
+        
+        dlg = SelectSerialDialog(mdx_port, arduino_port)
+        if dlg.exec_():
+            mdx_port = dlg.mdx_port
+            arduino_port = dlg.arduino_port
+            
+            if mdx_port == None:
+                return
+            else: 
+                serial_started = mdx20.OpenSerial(mdx_port)
+                if serial_started == False:
+                    QMessageBox.critical(self, "Error", "Error! Can not start serial!")
+                    self.Main_Control.setEnabled(False)
+                else:
+                    self.init_machine()
+            
+            if arduino_port == None:
+                self.tabWidget_2.setTabEnabled(1, False)
+                return
+            else:
+                self.tabWidget_2.setTabEnabled(1, True)
+                arduino.OpenSerial(arduino_port)
+                self.Load_Mesh()
         
     def Move(self, _x, _y, _z):
         """Move bed and/or toolhead
@@ -633,11 +669,14 @@ class MainWindow(QMainWindow):
     def Save_Mesh(self):
         arr = [[h_grid, v_grid], mesh_bed]
         arr = np.array(arr, dtype=object)
-        np.save('mesh.npy',arr)
+        np.save(path + '/config/mesh.npy',arr)
         
     def Load_Mesh(self):
         global mesh_bed, h_grid, v_grid, mesh_bl_x, mesh_bl_y, mesh_tr_x, mesh_tr_y
-        arr = np.load('mesh.npy', allow_pickle=True).tolist()
+        try:
+            arr = np.load(path + "/config/mesh.npy", allow_pickle=True).tolist()
+        except:
+            return
         h_grid, v_grid = arr[0]
         mesh_bed = arr[1]
         mesh_bl_x, mesh_bl_y = mesh_bed[0][0], mesh_bed[0][1]
@@ -748,3 +787,13 @@ if __name__ == '__main__':
     window = MainWindow()
     window.show()
     app.exec_()
+    
+    if mdx_port != None:
+        config['Serial']['mdx_port'] = mdx_port
+        config['Serial']['arduino_port'] = arduino_port if arduino_port != None else "None"
+        
+        config['Origin']['x'] = str(x0)
+        config['Origin']['y'] = str(y0)
+        config['Origin']['z'] = str(z0)
+        with open(path + '/config/config.ini', 'w') as configfile:
+            config.write(configfile)

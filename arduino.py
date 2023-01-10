@@ -5,19 +5,16 @@ BAUDRATE = 4000000
 
 ser = None
 
-def OpenSerial():
+def OpenSerial(port):
     """Open Arduino serial connection
 
     Returns:
         bool: True for success, False of failed
     """
-    ports = serial.tools.list_ports.comports()
-    if len(ports) == 0:
-        return False
     
     global ser
     try:
-        ser = serial.Serial("/dev/ttyACM0", BAUDRATE)
+        ser = serial.Serial(port, BAUDRATE)
         ser.open()
     except serial.SerialException as e:
         if e.errno == None:

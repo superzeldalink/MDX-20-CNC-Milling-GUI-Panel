@@ -6,20 +6,16 @@ BAUDRATE = 9600
 
 ser = None
 
-def OpenSerial():
+def OpenSerial(port):
     """Open Serial RS232 connection
 
     Returns:
         bool: True for success, False of failed
     """
-    ports = serial.tools.list_ports.comports()
-    if len(ports) == 0:
-        return False
-    SERIALPORT, _, _ = ports[0]
     
     global ser
     try:
-        ser = serial.Serial(SERIALPORT, BAUDRATE, rtscts=True, dsrdtr=True)
+        ser = serial.Serial(port, BAUDRATE, rtscts=True, dsrdtr=True)
         ser.bytesize = serial.EIGHTBITS #number of bits per bytes
         ser.parity = serial.PARITY_NONE #set parity check: no parity
         ser.stopbits = serial.STOPBITS_ONE #number of stop bits
