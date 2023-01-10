@@ -1,0 +1,7 @@
+matplotlib==3.6.2
+numpy==1.23.5
+PyQt5==5.15.7
+PyQtAds==3.8.1
+pyserial==3.5
+scipy==1.10.0
+trimesh==3.9.31

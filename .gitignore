@@ -1,0 +1,5 @@
+/.qt_for_python
+/Path
+/__pycache__
+/mesh.npy
+/test.py
