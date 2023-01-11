@@ -50,7 +50,7 @@ def Send_Data(data):
     except serial.SerialException as e:
         return e.errno
     
-def Move(x,y,z):
+def Move(x,y,z, speed = 15):
     """Move to XYZ. 
         Attention: XYZ in thou or inch/1000
 
@@ -65,5 +65,5 @@ def Move(x,y,z):
     xi = mm2inch(x)
     yi = mm2inch(y)
     zi = mm2inch(z)
-    data = "V15;Z{:.1f},{:.1f},{:.1f};".format(xi, yi, zi)
+    data = "V{:.1f};Z{:.1f},{:.1f},{:.1f};".format(speed, xi, yi, zi)
     return Send_Data(data)

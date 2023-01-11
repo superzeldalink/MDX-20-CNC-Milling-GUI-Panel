@@ -94,7 +94,7 @@ class MeshBedWorker(QThread):
             for j in (np.arange(mesh_bl_x, mesh_tr_x+0.01, x_step) if (i - mesh_bl_y)%(2*y_step) == 0 else np.arange(mesh_tr_x, mesh_bl_x-0.01, -x_step)):
                 mdx20.Move(j, i, save_z+2)
                 mdx20.Move(j, i, save_z)
-                time.sleep(1.5)
+                time.sleep(2)
                 _z = self.AutoZ_Down(j, i, save_z)
                 if _z == "error":
                     return
@@ -390,7 +390,7 @@ class MainWindow(QMainWindow):
             _z (float): Z position
         """
         self.Update_Position(_x, _y, _z)
-        log = mdx20.Move(x,y,z)
+        log = mdx20.Move(x,y,z, 15 if not speed_override else speed)
         self.Add_To_Log(log)
         
     def Go(self):
@@ -756,8 +756,6 @@ class MainWindow(QMainWindow):
             if len(points_data) > 0:
                 origin = [x0, y0, z0]
                 points = PointsOnMesh.PointsOnMesh(mesh_bed, origin, points_data)
-                for i in range(len(points)):
-                    points[i][2] += z0
                 
         ZinstrucCount = 0
         for i in range(len(instructionsList)):
