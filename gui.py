@@ -769,6 +769,7 @@ class MainWindow(QMainWindow):
         
     
     def Mesh_Bed(self):
+        self.Clear_Mesh()
         self.worker = MeshBedWorker()
         self.worker.start()
         self.worker.finished.connect(lambda: self.Move(x, y, 0))
