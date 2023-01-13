@@ -77,11 +77,12 @@ class MeshBedWorker(QThread):
     
     def AutoZ_Down(self,_x ,_y, _z):
         while True:
-            read_data = arduino.Read_Data()
-            if read_data == 0:
-                return _z
-            elif read_data == 2:
-                return "error"
+            for _ in range(10):
+                read_data = arduino.Read_Data()
+                if read_data == 0:
+                    return _z
+                elif read_data == 2:
+                    return "error"
             mdx20.Move(_x,_y,_z)
             _z = _z - 0.0127
     
@@ -94,7 +95,7 @@ class MeshBedWorker(QThread):
             for j in (np.arange(mesh_bl_x, mesh_tr_x+0.01, x_step) if (i - mesh_bl_y)%(2*y_step) == 0 else np.arange(mesh_tr_x, mesh_bl_x-0.01, -x_step)):
                 mdx20.Move(j, i, save_z+2)
                 mdx20.Move(j, i, save_z)
-                time.sleep(2)
+                time.sleep(1)
                 _z = self.AutoZ_Down(j, i, save_z)
                 if _z == "error":
                     return
@@ -307,7 +308,7 @@ class MainWindow(QMainWindow):
             
             self.fileviewer3d.Set_Toolhead_Pos(x, y, z)
         
-        prev_time = now_time
+            prev_time = now_time
         
     def Draw_Lines(self):
         """Draw toolpath on 2D, 3D viewports"""
@@ -583,11 +584,12 @@ class MainWindow(QMainWindow):
         global z
         mdx20.Send_Data("V15.0")
         while True:
-            read_data = arduino.Read_Data()
-            if read_data == 0:
-                return
-            elif read_data == 2:
-                return "error"
+            for _ in range(10):
+                read_data = arduino.Read_Data()
+                if read_data == 0:
+                    return
+                elif read_data == 2:
+                    return "error"
             mdx20.Move(x,y,z)
             z = z - 0.0127
             

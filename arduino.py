@@ -32,6 +32,7 @@ def Read_Data():
         if ser != None:
             ser.flushInput()
             ser.flushOutput()
+            ser.flush()
             read  = ser.readline()
             if read != b'0\r\n' and read != b'1\r\n':
                 return 1
