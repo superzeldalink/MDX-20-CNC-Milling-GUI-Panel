@@ -1,4 +1,4 @@
-import sys, mdx20, nc2rol, pathlib, time, arduino, PointsOnMesh, configparser
+import sys, mdx20, nc2rol, pathlib, time, arduino, PointsOnMesh, configparser, alignmentviewer, align
 from utils import *
 from SelectSerialDialog import SelectSerialDialog
 import numpy as np
@@ -9,6 +9,8 @@ from PyQt5 import uic
 from PyQt5.QtCore import QThread, pyqtSignal, QLineF
 from PyQt5.QtCore import QFile, QTextStream
 import breeze_resources
+
+DEBUG = False
 
 path = str(pathlib.Path(__file__).parent.resolve())
 
@@ -37,12 +39,25 @@ use_mesh = False
 
 mdx_port, arduino_port = None, None
 
+# al_orig = [[-0.6,59.892],[60.595,59.892],[0,0],[60.588,0.003]]
+# al_measured = [[0,60],[60.7,60.1],[0,0],[60.7,0.2]]
+al_orig, al_measured = [[],[],[],[]], [[],[],[],[]]
+align_offset, align_rad, align_std = [0,0], 0, 0
+aligned_plot = None
+sel_point = None
+sel_point_plot = None
+orig_points_data = []
+
 config = configparser.ConfigParser()
 config.read(path + "/config/config.ini")
 
 x0 = float(config['Origin']['x'])
 y0 = float(config['Origin']['y'])
 z0 = float(config['Origin']['z'])
+
+align_offset = [float(config['Align']['x']), float(config['Align']['y'])]
+align_rad = float(config['Align']['rad'])
+align_std = float(config['Align']['std'])
 
 class WorkerThread(QThread):
     """Job milling worker"""
@@ -201,6 +216,24 @@ class MainWindow(QMainWindow):
         self.relevel_btn.clicked.connect(self.Relevel)
         self.use_mesh_checkbox.stateChanged.connect(self.Use_Mesh)
         
+        self.tl_orig_btn.clicked.connect(self.tl_orig_Set)
+        self.tr_orig_btn.clicked.connect(self.tr_orig_Set)
+        self.bl_orig_btn.clicked.connect(self.bl_orig_Set)
+        self.br_orig_btn.clicked.connect(self.br_orig_Set)
+        
+        self.tl_measured_btn.clicked.connect(self.tl_measured_Set)
+        self.tr_measured_btn.clicked.connect(self.tr_measured_Set)
+        self.bl_measured_btn.clicked.connect(self.bl_measured_Set)
+        self.br_measured_btn.clicked.connect(self.br_measured_Set)
+        
+        self.al_offset_label.setText("({:.3f}, {:.3f})".format(align_offset[0], align_offset[1]))
+        self.al_deg_label.setText("{:.3f}".format(np.rad2deg(align_rad)))
+        self.al_std_deg_label.setText("{:.3f}".format(np.rad2deg(align_std)))
+        
+        self.calc_btn.clicked.connect(self.Calculate)
+        self.align_btn.clicked.connect(self.Align)
+        self.revert_btn.clicked.connect(self.RevertAlign)
+        
         self.update_table_size()
         
         self.setFocusPolicy(QtCore.Qt.StrongFocus)
@@ -231,12 +264,15 @@ class MainWindow(QMainWindow):
         self.graphicsView.scale(5, -5)
         self.graphicsView.viewport().installEventFilter(self)
         
-        self.Main_Control.setEnabled(False)
+        if DEBUG == False:
+            self.Main_Control.setEnabled(False)
         
         """Set spinboxes values from config file"""
         self.x0_spinbox.setValue(x0)
         self.y0_spinbox.setValue(y0)
         self.z0_spinbox.setValue(z0)
+        
+        self.aligned_plot = None
 
     """2D viewport related functions"""
     def eventFilter(self, source, event):
@@ -493,7 +529,7 @@ class MainWindow(QMainWindow):
                 - Basic *.nc, *.gcode instructions (G00, G01, M3, M5). File exported from FlatCAM Mach3 post-processing.
             Opened file will be read, draw paths on 2D, 3D viewports and add to instructions list.
         """
-        global instructionsList
+        global instructionsList, orig_points_data
         options = QFileDialog.Options()
         options |= QFileDialog.DontUseNativeDialog
         fileName, _ = QFileDialog.getOpenFileName(self,"QFileDialog.getOpenFileName()", "",\
@@ -523,12 +559,25 @@ class MainWindow(QMainWindow):
                     z = inch2mm(float(z))
                     points_data.append([x,y,z])
                     
+        orig_points_data = points_data.copy()
+                    
         self.Check_Use_Mesh()
         self.Draw_Lines()
         
         self.progress_label.setText(f"{currentInstruction}/{len(lines)}")
         self.progressBar.setValue(0)
-                        
+        
+        _x, _y, _z = [], [], []
+        for i in points_data:
+            _x.append(i[0])
+            _y.append(i[1])
+            _z.append(i[2])
+        self.alignmentviewer.canvas.axes.clear()
+        tolerance = 10
+        self.alignmentviewer.canvas.axes.plot(_x, _y, 'bo', markersize=2, picker=tolerance)
+        self.alignmentviewer.canvas.draw()
+        self.alignmentviewer.canvas.callbacks.connect('pick_event', self.on_pick)
+        
     def Instruction_row_changed(self, currentRow):
         """Instructions list row changed -> update progress"""
         global currentInstruction
@@ -778,6 +827,92 @@ class MainWindow(QMainWindow):
         self.worker.update_meshviewer.connect(lambda: self.meshbedviewer.Plot_Mesh(mesh_bed))
         self.worker.update_table_value.connect(lambda: self.update_table_value())
     """"""
+    def on_pick(self, event):
+        global sel_point, sel_point_plot
+        artist = event.artist
+        x, y = artist.get_xdata(), artist.get_ydata()
+        ind = event.ind
+        sel_point = [x[ind[0]], y[ind[0]]]
+        if sel_point_plot != None:
+            sel_point_plot.pop(0).remove()
+        sel_point_plot = self.alignmentviewer.canvas.axes.plot(sel_point[0], sel_point[1], 'ro', markersize=3)
+        self.alignmentviewer.canvas.draw()
+    
+    def tl_orig_Set(self):
+        global al_orig
+        al_orig[0] = sel_point
+        self.tl_orig_btn.setText('{:.3f}, {:.3f}'.format(sel_point[0], sel_point[1]))
+    def tr_orig_Set(self):
+        global al_orig
+        al_orig[1] = sel_point
+        self.tr_orig_btn.setText('{:.3f}, {:.3f}'.format(sel_point[0], sel_point[1]))
+    def bl_orig_Set(self):
+        global al_orig
+        al_orig[2] = sel_point
+        self.bl_orig_btn.setText('{:.3f}, {:.3f}'.format(sel_point[0], sel_point[1]))
+    def br_orig_Set(self):
+        global al_orig
+        al_orig[3] = sel_point
+        self.br_orig_btn.setText('{:.3f}, {:.3f}'.format(sel_point[0], sel_point[1]))
+    
+    def tl_measured_Set(self):
+        global al_measured
+        al_measured[0] = [x,y]
+        self.tl_measured_btn.setText('{:.3f}, {:.3f}'.format(x, y))
+    def tr_measured_Set(self):
+        global al_measured
+        al_measured[1] = [x,y]
+        self.tr_measured_btn.setText('{:.3f}, {:.3f}'.format(x, y))
+    def bl_measured_Set(self):
+        global al_measured
+        al_measured[2] = [x,y]
+        self.bl_measured_btn.setText('{:.3f}, {:.3f}'.format(x, y))
+    def br_measured_Set(self):
+        global al_measured
+        al_measured[3] = [x,y]
+        self.br_measured_btn.setText('{:.3f}, {:.3f}'.format(x, y))
+        
+    def Calculate(self):
+        global align_offset, align_rad, align_std
+        for i in al_orig:
+            if not i:
+                return
+        for i in al_measured:
+            if not i:
+                return
+        align_offset, align_rad, align_std = align.Calculate(points_data, al_orig, al_measured)
+        
+        self.al_offset_label.setText("({:.3f}, {:.3f})".format(align_offset[0], align_offset[1]))
+        self.al_deg_label.setText("{:.3f}".format(np.rad2deg(align_rad)))
+        self.al_std_deg_label.setText("{:.3f}".format(np.rad2deg(align_std)))
+        
+    def Align(self):
+        global points_data
+        points_data = align.GetAlignedPoints(orig_points_data, align_offset, align_rad)
+        
+        _x, _y = [], []
+        for i in points_data:
+            _x.append(i[0])
+            _y.append(i[1])
+        
+        if self.aligned_plot != None:
+            self.aligned_plot.pop(0).remove()    
+        
+        self.aligned_plot = self.alignmentviewer.canvas.axes.plot(_x, _y, 'ro', markersize=2)
+        self.alignmentviewer.canvas.draw()
+        
+        self.Check_Use_Mesh()
+        self.Draw_Lines()
+        
+    def RevertAlign(self):
+        global points_data
+        points_data = orig_points_data
+        if self.aligned_plot != None:
+            self.aligned_plot.pop(0).remove()
+            self.aligned_plot = None
+        self.alignmentviewer.canvas.draw()
+        self.Check_Use_Mesh()
+        self.Draw_Lines()
             
 if __name__ == '__main__':
     app = QApplication(sys.argv)
@@ -792,12 +927,17 @@ if __name__ == '__main__':
     window.show()
     app.exec_()
     
-    if mdx_port != None:
-        config['Serial']['mdx_port'] = mdx_port
+    if mdx_port != None or DEBUG == True:
+        config['Serial']['mdx_port'] = mdx_port if mdx_port != None else "None"
         config['Serial']['arduino_port'] = arduino_port if arduino_port != None else "None"
         
         config['Origin']['x'] = str(x0)
         config['Origin']['y'] = str(y0)
         config['Origin']['z'] = str(z0)
+        
+        config['Align']['x'] = str(align_offset[0])
+        config['Align']['y'] = str(align_offset[1])
+        config['Align']['rad'] = str(align_rad)
+        config['Align']['std'] = str(align_std)
         with open(path + '/config/config.ini', 'w') as configfile:
             config.write(configfile)
