@@ -7,7 +7,7 @@ class AlignmentViewer(QWidget):
     def __init__(self, parent = None):
         QWidget.__init__(self, parent)
 
-        self.canvas = FigureCanvas(Figure(figsize=(20,10)))
+        self.canvas = FigureCanvas(Figure(figsize=(10,6.5)))
         
         vertical_layout = QVBoxLayout()
         vertical_layout.addWidget(self.canvas)
