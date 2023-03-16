@@ -105,9 +105,16 @@ class MeshBedWorker(QThread):
         save_z = z
         x_step = (mesh_tr_x - mesh_bl_x) / h_grid
         y_step = (mesh_tr_y - mesh_bl_y) / v_grid
-        
-        for i in np.arange(mesh_bl_y, mesh_tr_y+0.01, y_step):
-            for j in (np.arange(mesh_bl_x, mesh_tr_x+0.01, x_step) if (i - mesh_bl_y)%(2*y_step) == 0 else np.arange(mesh_tr_x, mesh_bl_x-0.01, -x_step)):
+        tolerance = 1e-10
+
+        for i in np.arange(mesh_bl_y, mesh_tr_y+0.001, y_step):
+            i = round(i, 4)
+            if abs((i - mesh_bl_y) / (2*y_step) - round((i - mesh_bl_y) / (2*y_step))) < tolerance:
+                grid_list = np.arange(mesh_bl_x, mesh_tr_x+0.001, x_step)
+            else:
+                grid_list = np.arange(mesh_tr_x, mesh_bl_x-0.001, -x_step)
+
+            for j in grid_list:
                 mdx20.Move(j, i, save_z+2)
                 mdx20.Move(j, i, save_z)
                 time.sleep(1)
